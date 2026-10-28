@@ -136,9 +136,21 @@
 				border: 2px solid var(--steel);
 			}
 			input:focus {
-				outline: none;
 				border-color: var(--amber);
-				box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber) 40%, transparent);
+			}
+			input:focus-visible,
+			button:focus-visible,
+			.siatka:focus-visible,
+			#wyniki:focus-visible {
+				outline: 3px solid var(--amber);
+				outline-offset: 3px;
+				border-radius: 0;
+				box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber) 35%, transparent);
+			}
+			button:focus-visible {
+				box-shadow:
+					4px 4px 0 var(--crane-dim),
+					0 0 0 6px color-mix(in srgb, var(--amber) 35%, transparent);
 			}
 			button {
 				font-family: 'Press Start 2P', monospace;
@@ -172,8 +184,43 @@
 				margin: 0.25rem 0;
 			}
 			#wyniki[data-stan='blad'] {
-				border: 2px solid var(--rust);
+				padding: 0;
+				border: 4px solid var(--rust);
 				color: var(--amber);
+				box-shadow: 4px 4px 0 color-mix(in srgb, var(--rust) 60%, var(--bg));
+			}
+			.uwaga h3 {
+				margin: 0;
+				padding: 0.9rem 0.9rem 0.6rem;
+				font-family: 'Press Start 2P', monospace;
+				font-size: 0.7rem;
+				line-height: 1.5;
+				color: var(--amber);
+				text-shadow: 0 0 8px color-mix(in srgb, var(--amber) 60%, transparent);
+				background:
+					repeating-linear-gradient(-45deg, var(--amber) 0 12px, var(--bg) 12px 24px) top / 100% 10px no-repeat,
+					var(--bg);
+			}
+			.uwaga .tresc {
+				padding: 0.75rem 0.9rem;
+				border-left: 12px solid var(--amber);
+				border-image: repeating-linear-gradient(180deg, var(--amber) 0 12px, var(--bg) 12px 24px) 1;
+				border-image-width: 0 0 0 12px;
+			}
+			.uwaga .tresc p {
+				margin: 0.35rem 0;
+			}
+			input[aria-invalid='true'] {
+				border: 3px solid var(--rust);
+				box-shadow: 3px 3px 0 var(--amber);
+				padding-right: 2.4rem;
+				background-image:
+					linear-gradient(var(--bg), var(--bg)),
+					linear-gradient(var(--bg), var(--bg)),
+					linear-gradient(var(--amber), var(--amber));
+				background-size: 3px 7px, 3px 3px, 18px 18px;
+				background-position: right 14px center, right 14px bottom 8px, right 7px center;
+				background-repeat: no-repeat;
 			}
 			#wyniki[data-stan='wynik'] {
 				padding: 0;
@@ -477,13 +524,32 @@
 				}
 			}
 
-			@media (max-width: 700px) {
+			@media (max-width: 1024px) {
 				.arena-wyniki {
 					flex-direction: column;
 					align-items: stretch;
 				}
 				.wiezak {
 					align-self: center;
+				}
+			}
+
+			@media (max-width: 700px) {
+				body {
+					padding: 1rem 0.75rem 9rem;
+				}
+				h1 {
+					font-size: 1.05rem;
+					overflow-wrap: anywhere;
+				}
+				form {
+					max-width: none;
+				}
+				input,
+				button {
+					width: 100%;
+					min-height: 44px;
+					box-sizing: border-box;
 				}
 				.neptun {
 					display: none;
@@ -524,7 +590,7 @@
 				<button type="submit">Walcz!</button>
 			</form>
 
-			<section id="wyniki" aria-live="polite">Wpisz nazwy graczy i kliknij „Walcz!”.</section>
+			<section id="wyniki" aria-live="polite" aria-busy="false" aria-label="Wyniki pojedynku" tabindex="-1">Wpisz nazwy graczy i kliknij „Walcz!”.</section>
 		</main>
 
 		<footer class="port" aria-hidden="true">
@@ -612,11 +678,44 @@
 
 			function pokaz(stan: 'info' | 'blad', ...linie: string[]) {
 				wyniki.dataset.stan = stan;
+				if (stan === 'blad') {
+					wyniki.setAttribute('aria-live', 'off');
+					const uwaga = el('div', undefined, 'uwaga');
+					uwaga.setAttribute('role', 'alert');
+					const tresc = el('div', undefined, 'tresc');
+					tresc.append(...linie.map((tekst) => el('p', tekst)));
+					uwaga.append(el('h3', 'UWAGA, KAPITANIE!'), tresc);
+					wyniki.replaceChildren(uwaga);
+					return;
+				}
+				wyniki.setAttribute('aria-live', 'polite');
 				wyniki.replaceChildren(...linie.map((tekst) => el('p', tekst)));
 			}
 
+			const LOGIN_RE = /^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i;
+
+			function oznaczBlad(pole: HTMLInputElement) {
+				pole.setAttribute('aria-invalid', 'true');
+				pole.setAttribute('aria-describedby', 'wyniki');
+			}
+
+			function wyczyscBledy() {
+				pola.forEach((p) => {
+					p.removeAttribute('aria-invalid');
+					p.removeAttribute('aria-describedby');
+				});
+			}
+
+			pola.forEach((p) =>
+				p.addEventListener('input', () => {
+					p.removeAttribute('aria-invalid');
+					p.removeAttribute('aria-describedby');
+				}),
+			);
+
 			function pokazLadowanie() {
 				wyniki.dataset.stan = 'info';
+				wyniki.setAttribute('aria-live', 'polite');
 				const l = el('div', undefined, 'ladowanie');
 				l.append(el('div', undefined, 'blok'), el('div', undefined, 'lina'), el('div', undefined, 'hak'), el('p', 'Walka trwa…'));
 				wyniki.replaceChildren(l);
@@ -624,12 +723,26 @@
 
 			const jestPawlem = (login: string) => login.toLowerCase().replace(/-/g, '') === 'pawelsiwek';
 
-			async function pobierz(login: string): Promise<ContributionData> {
-				const res = await fetch(`/api/contributions/${encodeURIComponent(login)}`);
-				if (res.status === 400) throw new Error(`Nieprawidłowa nazwa użytkownika: ${login}`);
-				if (res.status === 404) throw new Error(`Nie znaleziono użytkownika: ${login}`);
-				if (!res.ok) throw new Error('Nie udało się pobrać danych. Spróbuj ponownie.');
-				const dane: ContributionData = await res.json();
+			async function pobierz(login: string, nr: number): Promise<ContributionData> {
+				const kto = `Gracz ${nr} („${login}”)`;
+				let res: Response;
+				try {
+					res = await fetch(`/api/contributions/${encodeURIComponent(login)}`);
+				} catch {
+					throw new Error('Brak połączenia z portem. Sprawdź internet i spróbuj ponownie.');
+				}
+				if (res.status === 400) throw new Error(`${kto}: nieprawidłowa nazwa użytkownika.`);
+				if (res.status === 404) throw new Error(`${kto}: nie znaleziono takiego stoczniowca na GitHubie.`);
+				if (res.status === 429) throw new Error(`${kto}: za dużo zapytań naraz. Odczekaj chwilę w porcie i spróbuj ponownie.`);
+				if (res.status === 502 || res.status === 504)
+					throw new Error(`${kto}: GitHub nie odpowiada lub odpowiada zbyt wolno. Spróbuj ponownie za chwilę.`);
+				if (!res.ok) throw new Error(`${kto}: awaria na nabrzeżu (kod ${res.status}). Spróbuj ponownie.`);
+				let dane: ContributionData;
+				try {
+					dane = await res.json();
+				} catch {
+					throw new Error(`${kto}: otrzymano uszkodzone dane z portu. Spróbuj ponownie.`);
+				}
 				if (jestPawlem(login)) dane.total_contributions += 10000;
 				return dane;
 			}
@@ -642,8 +755,11 @@
 				return dataPL(d.toISOString());
 			}
 
-			function siatka(dane: ContributionData): HTMLElement {
+			function siatka(login: string, dane: ContributionData): HTMLElement {
 				const s = el('div', undefined, 'siatka');
+				s.tabIndex = 0;
+				s.setAttribute('role', 'region');
+				s.setAttribute('aria-label', `Wykres kontrybucji gracza ${login}`);
 				dane.weeks.forEach((week, i) => {
 					for (const day of week.contribution_days) {
 						const kwadrat = el('div', undefined, 'dzien');
@@ -665,7 +781,7 @@
 					el('h2', login),
 					el('p', `Łącznie: ${dane.total_contributions} kontrybucji`),
 					el('p', `Zakres: ${dataPL(dane.from)} – ${dataPL(dane.to)}`),
-					siatka(dane),
+					siatka(login, dane),
 				);
 				suwnica.append(
 					belka,
@@ -695,17 +811,51 @@
 				const gracz1 = String(dane.get('gracz1')).trim();
 				const gracz2 = String(dane.get('gracz2')).trim();
 
-				if (!gracz1 || !gracz2) {
-					pokaz('blad', 'Wpisz nazwy obu graczy.');
-					(gracz1 ? pola[1] : pola[0]).focus();
+				wyczyscBledy();
+				const bledy: string[] = [];
+				let pierwszy: HTMLInputElement | undefined;
+				[gracz1, gracz2].forEach((g, i) => {
+					if (!g) {
+						oznaczBlad(pola[i]);
+						pierwszy ??= pola[i];
+					}
+				});
+				if (!gracz1 || !gracz2) bledy.push('Wpisz nazwy obu graczy.');
+				[gracz1, gracz2].forEach((g, i) => {
+					if (g && !LOGIN_RE.test(g)) {
+						bledy.push(
+							`Gracz ${i + 1}: nieprawidłowa nazwa użytkownika. Użyj liter, cyfr i pojedynczych myślników (max 39 znaków, bez myślnika na początku i końcu).`,
+						);
+						oznaczBlad(pola[i]);
+						pierwszy ??= pola[i];
+					}
+				});
+				if (bledy.length) {
+					pokaz('blad', ...bledy);
+					pierwszy?.focus();
 					return;
 				}
 
 				ustawBlokade(true);
+				wyniki.setAttribute('aria-busy', 'true');
 				document.body.classList.remove('zwyciestwo');
 				pokazLadowanie();
 				try {
-					const [dane1, dane2] = await Promise.all([pobierz(gracz1), pobierz(gracz2)]);
+					const [wyn1, wyn2] = await Promise.allSettled([pobierz(gracz1, 1), pobierz(gracz2, 2)]);
+					if (wyn1.status === 'rejected' || wyn2.status === 'rejected') {
+						const linie: string[] = [];
+						[wyn1, wyn2].forEach((w, i) => {
+							if (w.status === 'rejected') {
+								const msg = w.reason instanceof Error ? w.reason.message : 'Wystąpił nieznany błąd.';
+								if (!linie.includes(msg)) linie.push(msg);
+								if (!msg.startsWith('Brak połączenia')) oznaczBlad(pola[i]);
+							}
+						});
+						pokaz('blad', ...linie);
+						return;
+					}
+					const dane1 = wyn1.value;
+					const dane2 = wyn2.value;
 					const w1 = dane1.total_contributions;
 					const w2 = dane2.total_contributions;
 
@@ -722,9 +872,11 @@
 					wyniki.replaceChildren(arena, el('div', undefined, 'nabrzeze'), el('p', napis));
 					if (kto !== 0) document.body.classList.add('zwyciestwo');
 				} catch (err) {
-					pokaz('blad', err instanceof Error ? err.message : 'Wystąpił nieznany błąd.');
+					pokaz('blad', 'Wystąpił nieznany błąd. Spróbuj ponownie.');
 				} finally {
 					ustawBlokade(false);
+					wyniki.setAttribute('aria-busy', 'false');
+					wyniki.focus();
 				}
 			});
 		</script>
