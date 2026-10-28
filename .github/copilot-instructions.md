@@ -23,3 +23,14 @@ Nie ma konfiguracji testów ani lintera.
 - TypeScript korzysta z `astro/tsconfigs/strict`.
 - Teksty w projekcie (UI, TODO, README) są po polsku; teksty widoczne dla użytkownika pisz po polsku i zachowaj klimat gdańskiej stoczni.
 - Odpowiedzi API to JSON z nagłówkiem `Content-Type: application/json`, także błędy (`{ error: string }` z odpowiednim statusem).
+
+## Motyw wizualny: gdańska stocznia nocą (pixel art)
+
+Cała strona (`src/pages/index.astro`) trzyma się jednej estetyki: retro 8/16-bit w bałtyckim porcie nocą. **Każdy nowy element interfejsu musi pasować do tego motywu** (skrzynie, suwnice, nabrzeże, hak, stal i bursztyn — nie generyczne karty/przyciski).
+
+- **Paleta (zmienne CSS w `:root`, używaj wyłącznie ich):** `--bg #0d1117` (noc), `--crane #3fb950` (suwnice), `--crane-dim #2ea043`, `--amber #e3b341` (akcenty, skrzynie, poświata), `--rust #b45309` (cegła, rdza), `--steel #8b949e` (konstrukcje, nabrzeże), `--text #e6edf3`. Kolory pochodne tylko przez `color-mix()`/rgba z tych zmiennych. Wyjątki: kolory poziomów kontrybucji z API (`colors_full`) oraz czerń kadłuba Sołdka.
+- **Fonty:** nagłówki, przyciski i plakietki w „Press Start 2P” (małe rozmiary, `line-height` ~1.5), tekst i dane w „JetBrains Mono” (Google Fonts).
+- **Pixel art:** bez zaokrągleń (`border-radius: 0`), twarde cienie, grafika wyłącznie CSS lub inline SVG z `shape-rendering: crispEdges`; bez plików obrazów. Bursztynowa poświata (`text-shadow`/`box-shadow` z `color-mix`) jako „reflektor”.
+- **Animacje:** subtelne i wolne (wahadło, kołysanie, paralaksa tła, migotanie), często `steps()` dla pikselowego efektu; nie mogą ograniczać czytelności danych. Każda nowa animacja musi być wyłączana przez istniejący blok `@media (prefers-reduced-motion: reduce)`.
+- **Dekoracje** (panorama, port, Sołdek, Neptun) to elementy `aria-hidden="true"` z `pointer-events: none`, za treścią (ujemny `z-index`).
+- Style elementów tworzonych skryptem w runtime muszą być w `<style is:global>`.
