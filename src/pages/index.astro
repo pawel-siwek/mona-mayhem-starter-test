@@ -12,7 +12,7 @@
 		<style>
 			body {
 				font-family: system-ui, sans-serif;
-				max-width: 40rem;
+				max-width: 60rem;
 				margin: 2rem auto;
 				padding: 0 1rem;
 			}
@@ -42,19 +42,55 @@
 				margin: 0.25rem 0;
 			}
 		</style>
+		<style is:global>
+			.arena-wyniki {
+				display: flex;
+				align-items: flex-start;
+				gap: 1rem;
+			}
+			.gracz {
+				flex: 1;
+				min-width: 0;
+			}
+			.gracz h2 {
+				margin: 0 0 0.25rem;
+			}
+			.vs {
+				align-self: center;
+				padding: 0.5rem 0.75rem;
+				border-radius: 999px;
+				background: #216e39;
+				color: #fff;
+				font-weight: bold;
+			}
+			.siatka {
+				display: grid;
+				grid-auto-columns: 5px;
+				grid-template-rows: repeat(7, 5px);
+				gap: 2px;
+				margin-top: 0.5rem;
+				overflow-x: auto;
+				padding-bottom: 0.5rem;
+			}
+			.dzien {
+				width: 5px;
+				height: 5px;
+				border-radius: 2px;
+			}
+		</style>
 	</head>
 	<body>
 		<h1>Mayhem w Stoczni</h1>
 		<p>Arena pojedynków na kontrybucje z GitHuba</p>
 
-		<form id="arena">
+		<form id="arena" novalidate>
 			<label>
 				Gracz 1
-				<input name="gracz1" required autocomplete="off" placeholder="np. torvalds" />
+				<input name="gracz1" autocomplete="off" placeholder="np. torvalds" />
 			</label>
 			<label>
 				Gracz 2
-				<input name="gracz2" required autocomplete="off" placeholder="np. gaearon" />
+				<input name="gracz2" autocomplete="off" placeholder="np. gaearon" />
 			</label>
 			<button type="submit">Walcz!</button>
 		</form>
@@ -62,27 +98,89 @@
 		<section id="wyniki" aria-live="polite">Wpisz nazwy graczy i kliknij „Walcz!”.</section>
 
 		<script>
+			interface ContributionDay {
+				weekday: number;
+				count: number;
+				level: number;
+			}
+			interface ContributionWeek {
+				index: number;
+				first_day: string;
+				contribution_days: ContributionDay[];
+			}
+			interface ContributionData {
+				from: string;
+				to: string;
+				total_contributions: number;
+				colors_full: string[];
+				weeks: ContributionWeek[];
+			}
+
 			const form = document.querySelector<HTMLFormElement>('#arena')!;
 			const wyniki = document.querySelector<HTMLElement>('#wyniki')!;
 			const przycisk = form.querySelector('button')!;
+			const pola = form.querySelectorAll('input');
 
-			function pokaz(...linie: string[]) {
-				wyniki.replaceChildren(
-					...linie.map((tekst) => {
-						const p = document.createElement('p');
-						p.textContent = tekst;
-						return p;
-					}),
-				);
+			function el<K extends keyof HTMLElementTagNameMap>(
+				tag: K,
+				tekst?: string,
+				klasa?: string,
+			): HTMLElementTagNameMap[K] {
+				const e = document.createElement(tag);
+				if (tekst !== undefined) e.textContent = tekst;
+				if (klasa) e.className = klasa;
+				return e;
 			}
 
-			async function pobierz(login: string): Promise<number> {
+			function pokaz(...linie: string[]) {
+				wyniki.replaceChildren(...linie.map((tekst) => el('p', tekst)));
+			}
+
+			async function pobierz(login: string): Promise<ContributionData> {
 				const res = await fetch(`/api/contributions/${encodeURIComponent(login)}`);
 				if (res.status === 400) throw new Error(`Nieprawidłowa nazwa użytkownika: ${login}`);
 				if (res.status === 404) throw new Error(`Nie znaleziono użytkownika: ${login}`);
 				if (!res.ok) throw new Error('Nie udało się pobrać danych. Spróbuj ponownie.');
-				const dane = await res.json();
-				return dane.total_contributions;
+				return res.json();
+			}
+
+			const dataPL = (iso: string) => new Date(iso).toLocaleDateString('pl-PL');
+
+			function dzienDaty(week: ContributionWeek, day: ContributionDay): string {
+				const d = new Date(week.first_day);
+				d.setUTCDate(d.getUTCDate() + day.weekday);
+				return dataPL(d.toISOString());
+			}
+
+			function siatka(dane: ContributionData): HTMLElement {
+				const s = el('div', undefined, 'siatka');
+				dane.weeks.forEach((week, i) => {
+					for (const day of week.contribution_days) {
+						const kwadrat = el('div', undefined, 'dzien');
+						kwadrat.style.gridColumn = String(i + 1);
+						kwadrat.style.gridRow = String(day.weekday + 1);
+						kwadrat.style.background = dane.colors_full[day.level] ?? dane.colors_full[0];
+						kwadrat.title = `${dzienDaty(week, day)}: ${day.count} kontrybucji`;
+						s.append(kwadrat);
+					}
+				});
+				return s;
+			}
+
+			function karta(login: string, dane: ContributionData): HTMLElement {
+				const k = el('div', undefined, 'gracz');
+				k.append(
+					el('h2', login),
+					el('p', `Łącznie: ${dane.total_contributions} kontrybucji`),
+					el('p', `Zakres: ${dataPL(dane.from)} – ${dataPL(dane.to)}`),
+					siatka(dane),
+				);
+				return k;
+			}
+
+			function ustawBlokade(zablokowane: boolean) {
+				przycisk.disabled = zablokowane;
+				pola.forEach((p) => (p.disabled = zablokowane));
 			}
 
 			form.addEventListener('submit', async (e) => {
@@ -91,21 +189,27 @@
 				const gracz1 = String(dane.get('gracz1')).trim();
 				const gracz2 = String(dane.get('gracz2')).trim();
 
-				przycisk.disabled = true;
+				if (!gracz1 || !gracz2) {
+					pokaz('Wpisz nazwy obu graczy.');
+					(gracz1 ? pola[1] : pola[0]).focus();
+					return;
+				}
+
+				ustawBlokade(true);
 				pokaz('Walka trwa…');
 				try {
-					const [wynik1, wynik2] = await Promise.all([pobierz(gracz1), pobierz(gracz2)]);
-					const zwyciezca =
-						wynik1 === wynik2 ? 'Remis!' : `Zwycięzca: ${wynik1 > wynik2 ? gracz1 : gracz2} 🏆`;
-					pokaz(
-						`Gracz 1: ${gracz1} — ${wynik1} kontrybucji`,
-						`Gracz 2: ${gracz2} — ${wynik2} kontrybucji`,
-						zwyciezca,
-					);
+					const [dane1, dane2] = await Promise.all([pobierz(gracz1), pobierz(gracz2)]);
+					const arena = el('div', undefined, 'arena-wyniki');
+					arena.append(karta(gracz1, dane1), el('span', 'VS', 'vs'), karta(gracz2, dane2));
+
+					const w1 = dane1.total_contributions;
+					const w2 = dane2.total_contributions;
+					const zwyciezca = w1 === w2 ? 'Remis!' : `Zwycięzca: ${w1 > w2 ? gracz1 : gracz2} 🏆`;
+					wyniki.replaceChildren(arena, el('p', zwyciezca));
 				} catch (err) {
 					pokaz(err instanceof Error ? err.message : 'Wystąpił nieznany błąd.');
 				} finally {
-					przycisk.disabled = false;
+					ustawBlokade(false);
 				}
 			});
 		</script>
