@@ -9,9 +9,105 @@
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Mayhem w Stoczni</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 40rem;
+				margin: 2rem auto;
+				padding: 0 1rem;
+			}
+			form {
+				display: flex;
+				flex-direction: column;
+				gap: 0.75rem;
+			}
+			label {
+				display: flex;
+				flex-direction: column;
+				gap: 0.25rem;
+			}
+			input,
+			button {
+				font: inherit;
+				padding: 0.5rem;
+			}
+			#wyniki {
+				margin-top: 1.5rem;
+				padding: 1rem;
+				border: 1px solid #ccc;
+				border-radius: 0.5rem;
+				min-height: 3rem;
+			}
+			#wyniki p {
+				margin: 0.25rem 0;
+			}
+		</style>
 	</head>
 	<body>
 		<h1>Mayhem w Stoczni</h1>
-		<p>Witaj w Mayhem w Stoczni! Czas zbudować arenę pojedynków na kontrybucje z GitHuba.</p>
+		<p>Arena pojedynków na kontrybucje z GitHuba</p>
+
+		<form id="arena">
+			<label>
+				Gracz 1
+				<input name="gracz1" required autocomplete="off" placeholder="np. torvalds" />
+			</label>
+			<label>
+				Gracz 2
+				<input name="gracz2" required autocomplete="off" placeholder="np. gaearon" />
+			</label>
+			<button type="submit">Walcz!</button>
+		</form>
+
+		<section id="wyniki" aria-live="polite">Wpisz nazwy graczy i kliknij „Walcz!”.</section>
+
+		<script>
+			const form = document.querySelector<HTMLFormElement>('#arena')!;
+			const wyniki = document.querySelector<HTMLElement>('#wyniki')!;
+			const przycisk = form.querySelector('button')!;
+
+			function pokaz(...linie: string[]) {
+				wyniki.replaceChildren(
+					...linie.map((tekst) => {
+						const p = document.createElement('p');
+						p.textContent = tekst;
+						return p;
+					}),
+				);
+			}
+
+			async function pobierz(login: string): Promise<number> {
+				const res = await fetch(`/api/contributions/${encodeURIComponent(login)}`);
+				if (res.status === 400) throw new Error(`Nieprawidłowa nazwa użytkownika: ${login}`);
+				if (res.status === 404) throw new Error(`Nie znaleziono użytkownika: ${login}`);
+				if (!res.ok) throw new Error('Nie udało się pobrać danych. Spróbuj ponownie.');
+				const dane = await res.json();
+				return dane.total_contributions;
+			}
+
+			form.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				const dane = new FormData(form);
+				const gracz1 = String(dane.get('gracz1')).trim();
+				const gracz2 = String(dane.get('gracz2')).trim();
+
+				przycisk.disabled = true;
+				pokaz('Walka trwa…');
+				try {
+					const [wynik1, wynik2] = await Promise.all([pobierz(gracz1), pobierz(gracz2)]);
+					const zwyciezca =
+						wynik1 === wynik2 ? 'Remis!' : `Zwycięzca: ${wynik1 > wynik2 ? gracz1 : gracz2} 🏆`;
+					pokaz(
+						`Gracz 1: ${gracz1} — ${wynik1} kontrybucji`,
+						`Gracz 2: ${gracz2} — ${wynik2} kontrybucji`,
+						zwyciezca,
+					);
+				} catch (err) {
+					pokaz(err instanceof Error ? err.message : 'Wystąpił nieznany błąd.');
+				} finally {
+					przycisk.disabled = false;
+				}
+			});
+		</script>
 	</body>
 </html>
