@@ -41,6 +41,14 @@ npm run dev
 - VS Code v1.107+
 - Zalogowane rozszerzenie GitHub Copilot
 
+## Motywy areny
+
+Przycisk „Bałtycki świt” przełącza między nocną stocznią a chłodnym świtem
+ze stalowym błękitem (`#58a6ff`) i bladym bursztynem (`#f2cc60`).
+Wybór jest zapamiętywany w przeglądarce; ponowne naciśnięcie przywraca noc.
+Palety są zdefiniowane w `src/pages/index.astro` jako zmienne CSS w `:root`
+oraz `:root[data-motyw='swit']`. Kolory kontrybucji z API pozostają bez zmian.
+
 ## Stack technologiczny
 
 - **Framework:** [Astro](https://astro.build/) v6

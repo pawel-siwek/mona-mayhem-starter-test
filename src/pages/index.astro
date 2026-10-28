@@ -9,6 +9,15 @@
 		<meta name="viewport" content="width=device-width" />
 		<meta name="generator" content={Astro.generator} />
 		<title>Mayhem w Stoczni</title>
+		<script is:inline>
+			try {
+				if (localStorage.getItem('motyw') === 'swit') {
+					document.documentElement.dataset.motyw = 'swit';
+				}
+			} catch {
+				// Motyw działa również przy zablokowanej pamięci przeglądarki.
+			}
+		</script>
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
@@ -24,6 +33,16 @@
 				--rust: #b45309; /* cegła, rdza */
 				--steel: #8b949e; /* konstrukcje, nabrzeże */
 				--text: #e6edf3;
+			}
+
+			:root[data-motyw='swit'] {
+				--bg: #182b3a;
+				--crane: #58a6ff;
+				--crane-dim: color-mix(in srgb, var(--crane) 65%, var(--bg));
+				--amber: #f2cc60;
+				--rust: color-mix(in srgb, var(--amber) 45%, var(--bg));
+				--steel: #a9bfd0;
+				--text: #edf5fc;
 			}
 
 			body {
@@ -159,6 +178,22 @@
 			button:disabled {
 				opacity: 0.6;
 				cursor: progress;
+			}
+			.motyw {
+				margin-bottom: 1.5rem;
+				max-width: 100%;
+				min-height: 44px;
+				font-size: 0.65rem;
+				line-height: 1.5;
+				background: var(--amber);
+				box-shadow: 4px 4px 0 var(--rust);
+			}
+			.motyw:active {
+				box-shadow: 2px 2px 0 var(--rust);
+			}
+			.motyw:focus-visible {
+				outline: 3px solid var(--text);
+				outline-offset: 6px;
 			}
 
 			/* Obszar wyników */
@@ -511,6 +546,9 @@
 		<main>
 			<h1>Mayhem w Stoczni</h1>
 			<p class="podtytul">Arena pojedynków na kontrybucje z GitHuba</p>
+			<button class="motyw" id="motyw" type="button" aria-pressed="false">
+				Bałtycki świt
+			</button>
 
 			<form id="arena" novalidate>
 				<label>
@@ -576,6 +614,19 @@
 		</footer>
 
 		<script>
+			const motyw = document.querySelector<HTMLButtonElement>('#motyw')!;
+			motyw.setAttribute('aria-pressed', String(document.documentElement.dataset.motyw === 'swit'));
+			motyw.addEventListener('click', () => {
+				const swit = document.documentElement.dataset.motyw !== 'swit';
+				document.documentElement.dataset.motyw = swit ? 'swit' : 'noc';
+				motyw.setAttribute('aria-pressed', String(swit));
+				try {
+					localStorage.setItem('motyw', swit ? 'swit' : 'noc');
+				} catch {
+					// Przełączanie nie wymaga zapamiętania wyboru.
+				}
+			});
+
 			interface ContributionDay {
 				weekday: number;
 				count: number;
